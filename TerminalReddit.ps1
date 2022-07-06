@@ -2,29 +2,39 @@
 function Start-TerminalReddit {
     param(
         [String]
-        $Subreddit
+        $Subreddit,
+        [Int]
+        $NoOfPosts = 1000
     )
     
     # Variables
-    $TerminalX = [System.Console]::WindowWidth
-    $TerminalY = [System.Console]::WindowHeight
+    $Global:TerminalX = [System.Console]::WindowWidth
+    $Global:TerminalY = [System.Console]::WindowHeight
+    $Global:CacheFolder = $Env:APPDATA + "/PowershellTools/TerminalReddit"
+    $Global:PostsQueryLimit = $NoOfPosts
+    $Global:SiteContent = $null
     
-    # Prepare Application
     #TODO: If Terminal is too small, don't start the application
+    if (($TerminalX -lt 20) -or $TerminalY -lt 10) {
+        Write-Host "Window too small!" -ForegroundColor Red
+        Return
+    }
+
+    # Prepare Application
     Clear-Host
-    $CacheFolder = Init-Cache
-    Init-Prompt -WindowWidth $TerminalX -WindowHeight $TerminalY 
+    Init-Cache
+    Init-Prompt 
 
     # Load a subreddit if passed through as an argument
     if ($Subreddit -ne "") {
-        Get-RedditPage -Subreddit $Subreddit -TerminalX $TerminalX -TerminalY $TerminalY
+        Get-RedditPage -Subreddit $Subreddit
     } 
 
     #TODO: Not happy with this. Have a switch statement here
     # Prompt for user interaction
     $CloseApp = $false
     do {
-        $CloseApp = Start-Prompt -WindowWidth $TerminalX -WindowHeight $TerminalY
+        $CloseApp = Start-Prompt
     } while ( $CloseApp -ne $True )
 }
 
@@ -36,43 +46,45 @@ function Get-RedditPage {
         $Subreddit,
         # Number of results to display
         [Int]
-        $NumberOfResults = 26,
-        [Int]
-        $TerminalX,
-        [Int]
-        $TerminalY
+        $NumberOfResults = 26
     )
     
-    # Variables
-    $MaxCharsSubreddit = Divide-Int -Multiples 1 -Divisor 5 -IntToDivide ($TerminalX - 5)
-    $MaxCharsWhiteSpace = $MaxCharsSubreddit + 1
-    $MaxCharsTitle = Divide-Int -Multiples 4 -Divisor 5 -IntToDivide ($TerminalX - 5)
-
-    # Reset cursor
-    [System.Console]::SetCursorPosition(0,0)
-
     # Retrieve data from Reddit
     if ($Subreddit -eq "") { $Subreddit = "popular" }
     try {
-        $Page = Invoke-WebRequest -Uri "https://old.reddit.com/r/$Subreddit/.json"
-       
+        $Page = Invoke-WebRequest -Uri "https://old.reddit.com/r/$Subreddit/.json?limit=$PostsQueryLimit"
+        
     }
     catch {
         Write-Host "Error accessing this site" -ForegroundColor red
         return
     }
-
+    
     # Manipulating the data just received
     $Page = $Page | ConvertFrom-Json
-    $Links = $Page.Data.Children.Data
+    $Global:SiteContent = $Page.Data.Children.Data
+
+    Display-SubredditContent
+}
+
+function Display-SubredditContent {
+    # Variables
+    $MaxCharsSubreddit = Divide-Int -Multiples 1 -Divisor 5 -IntToDivide ($TerminalX - 5)
+    $MaxCharsWhiteSpace = $MaxCharsSubreddit + 1
+    $MaxCharsTitle = Divide-Int -Multiples 4 -Divisor 5 -IntToDivide ($TerminalX - 5)
+    
+    # Reset cursor
+    [System.Console]::SetCursorPosition(0,0)
+    
+    $NumberOfResults = 1000
     if ($NumberOfResults -gt 99 ) { $NumberOfResults = 99 }
-    if ($NumberOfResults -gt $Links.Count) { $NumberOfResults = $Links.Count }
+    if ($NumberOfResults -gt $SiteContent.Count) { $NumberOfResults = $SiteContent.Count }
     if ($NumberOfResults -gt $TerminalY) { $NumberOfResults = $TerminalY - 3 }
 
     # Display results and save them in a cache file
     for ($i = 0; $i -lt $NumberOfResults; $i++) {
-        $Subreddit = Truncate-String -Text $Links.Subreddit_name_prefixed[$i] -NewSize $MaxCharsSubreddit
-        $Title = Truncate-String -Text $Links.Title[$i] -NewSize $MaxCharsTitle
+        $Subreddit = Truncate-String -Text $SiteContent.Subreddit_name_prefixed[$i] -NewSize $MaxCharsSubreddit
+        $Title = Truncate-String -Text $SiteContent.Title[$i] -NewSize $MaxCharsTitle
         $NoOfSpaces = $MaxCharsWhiteSpace - $Subreddit.Length
 
         Write-Host [$i] -ForegroundColor Blue         -NoNewline
@@ -88,31 +100,17 @@ function Get-RedditPage {
 }
 
 function Init-Prompt {
-    param (
-        [Int]
-        $WindowWidth,
-        [Int]
-        $WindowHeight
-    )
-
-    [System.Console]::SetCursorPosition(0, $WindowHeight - 3)
-    for ($i = 0; $i -lt $WindowWidth; $i++) {
+    [System.Console]::SetCursorPosition(0, $TerminalY - 3)
+    for ($i = 0; $i -lt $TerminalX; $i++) {
         Write-Host "-" -NoNewline
     } 
 
     # Need this to pull screen into view, and then reset the cursor back.
     Write-Host " "
-    [System.Console]::SetCursorPosition(0,$WindowHeight - 2)
+    [System.Console]::SetCursorPosition(0,$TerminalY - 2)
 }
 
 function Start-Prompt {
-    param(
-        [Int]
-        $WindowWidth,
-        [Int]
-        $WindowHeight
-    )
-
     $validCommand = $false
     $char = ""
     $userInput = ""
@@ -121,7 +119,7 @@ function Start-Prompt {
         $char = [System.Console]::Read()
     } while ([int]$char -ne 10)
 
-    [System.Console]::SetCursorPosition(0, $WindowHeight - 2)
+    [System.Console]::SetCursorPosition(0, $TerminalY - 2)
     
     Write-Host "x" -NoNewline -ForegroundColor Red
     return $false
@@ -168,13 +166,9 @@ function Divide-Int {
 }
 
 function Init-Cache {
-    $CacheFolder = $Env:APPDATA + "/PowershellTools/TerminalReddit"
-
     if ((Test-Path -Path $CacheFolder) -ne $True) {
         New-Item -Path $CacheFolder -ItemType Directory
     }
-
-    return $CacheFolder
 }
 
 Start-TerminalReddit -Subreddit Powershell
