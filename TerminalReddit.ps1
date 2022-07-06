@@ -17,8 +17,7 @@ function Start-TerminalReddit {
     $Global:SubRedditPrompt = "(N)ext, (P)revious, (S)ubreddit, enter a Post Number or (Q)uit: " 
 
     # If Terminal is too small, don't start the application
-    # 53 is the longest string hard coded - "(N)ext, (P)revious, etc"
-    if (($TerminalX -lt 53) -or $TerminalY -lt 10) {
+    if (($TerminalX -lt $SubRedditPrompt.Length) -or $TerminalY -lt 10) {
         Write-Host "Window too small!" -ForegroundColor Red
         Return
     }
@@ -118,6 +117,7 @@ function Display-SubredditContent {
         Write-Host $Title -ForegroundColor Green
     }
     
+    #TODO: Start from here. Why isn't this variable increasing?
     $PostToStartFrom = $PostToStartFrom + $NumberOfResults
 
     for ($i = 0; $i -lt ($TerminalY - $NumberOfResults - 3); $i++) {
@@ -171,7 +171,6 @@ function Start-Prompt {
                 $charCount += 1
             }
         }
-        # 53 is the count for the "(N)ext, (P)revious etc..."
     } while (($charCount -lt ($TerminalX - $SubRedditPrompt.Length)) -and ($char.Key -ne "Enter"))
 
     return $userInput
