@@ -1,4 +1,4 @@
-#TODO: Functions export: Don't include Truncate-String and Divide-Int
+#TODO: Functions export: Don't include anything other than Start-TerminalReddit
 function Start-TerminalReddit {
     param(
         [String]
@@ -13,29 +13,55 @@ function Start-TerminalReddit {
     $Global:CacheFolder = $Env:APPDATA + "/PowershellTools/TerminalReddit"
     $Global:PostsQueryLimit = $NoOfPosts
     $Global:SiteContent = $null
-    
-    #TODO: If Terminal is too small, don't start the application
-    if (($TerminalX -lt 20) -or $TerminalY -lt 10) {
+    $Global:LowestPost = 0
+    $Global:MaxPost = 0
+    $Global:SubRedditPrompt = "(N)ext, (P)revious, (S)ubreddit, enter a Post Number or (Q)uit: " 
+
+    # If Terminal is too small, don't start the application
+    # 53 is the longest string hard coded - "(N)ext, (P)revious, etc"
+    if (($TerminalX -lt 53) -or $TerminalY -lt 10) {
         Write-Host "Window too small!" -ForegroundColor Red
         Return
     }
 
     # Prepare Application
     Clear-Host
+    $ProgressPreference = "SilentlyContinue" # No Progress Bar on Web Requests
     Init-Cache
-    Init-Prompt 
 
     # Load a subreddit if passed through as an argument
     if ($Subreddit -ne "") {
         Get-RedditPage -Subreddit $Subreddit
+    }
+    else {
+        Init-Prompt
     } 
 
-    #TODO: Not happy with this. Have a switch statement here
     # Prompt for user interaction
-    $CloseApp = $false
+    $closingApp = $false
     do {
-        $CloseApp = Start-Prompt
-    } while ( $CloseApp -ne $True )
+        $userInput = Start-Prompt
+        Clear-Prompt
+        
+        # For some weird reason $key.char returns numbers with a 'D' prefixed...
+        $userInputasInt = $userInput.Replace("D", "")  -as [int]
+        
+        if ($userInputasInt -ne $null) {
+            #TODO: Open an actual Reddit Post
+        }
+        else {
+            if ($userInput.Length -eq 1) {
+                switch ($userInput[0]) {
+                    "N" {}
+                    "P" {}
+                    "Q" { $closeApp = $True }
+                    Default {}
+                }
+            }
+        }
+    } while ( $closeApp -ne $True )
+
+    Clear-Host
 }
 
 
@@ -65,6 +91,7 @@ function Get-RedditPage {
     $Global:SiteContent = $Page.Data.Children.Data
 
     Display-SubredditContent
+    Init-Prompt
 }
 
 function Display-SubredditContent {
@@ -105,24 +132,50 @@ function Init-Prompt {
         Write-Host "-" -NoNewline
     } 
 
-    # Need this to pull screen into view, and then reset the cursor back.
-    Write-Host " "
+    [System.Console]::SetCursorPosition(0,$TerminalY -2)
+    Write-Host $SubRedditPrompt -NoNewline
+}
+
+function Clear-Prompt {
     [System.Console]::SetCursorPosition(0,$TerminalY - 2)
+    Write-Host (" " * $TerminalX)
+    Init-Prompt       
 }
 
 function Start-Prompt {
-    $validCommand = $false
     $char = ""
+    $charCount = 0
     $userInput = ""
-    do {
-        $userInput += $char
-        $char = [System.Console]::Read()
-    } while ([int]$char -ne 10)
-
-    [System.Console]::SetCursorPosition(0, $TerminalY - 2)
     
-    Write-Host "x" -NoNewline -ForegroundColor Red
-    return $false
+    do {
+        $char = [System.Console]::ReadKey()
+
+        if ($char.Key -eq "Backspace") {
+            if ($charCount -gt 0) {
+                # Overwrite the previous char in the console... 
+                Write-Host " " -NoNewline
+                $CurrentXPos = [System.Console]::CursorLeft
+                $CurrentYPos = [System.Console]::CursorTop
+                # ...But then you have to reset the cursor
+                [System.Console]::SetCursorPosition(($CurrentXPos - 1), $CurrentYPos)
+
+                # Update what is added to the return
+                $userInput = $userInput.Substring(0, $userInput.Length - 1)
+                $charCount -= 1
+
+                #TODO: Backspace will keep going into the prompt....
+            }
+        }
+        else {
+            if ($char.Key -ne "Enter") {
+                $userInput += $char.Key
+                $charCount += 1
+            }
+        }
+        # 53 is the count for the "(N)ext, (P)revious etc..."
+    } while (($charCount -lt ($TerminalX - $SubRedditPrompt.Length)) -and ($char.Key -ne "Enter"))
+
+    return $userInput
 }
 
 function Truncate-String {
