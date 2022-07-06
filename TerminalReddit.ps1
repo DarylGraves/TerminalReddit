@@ -11,10 +11,11 @@ function Start-TerminalReddit {
     
     # Prepare Application
     #TODO: If Terminal is too small, don't start the application
-    $CacheFolder = Init-Cache
     Clear-Host
+    $CacheFolder = Init-Cache
+    Init-Prompt -WindowWidth $TerminalX -WindowHeight $TerminalY 
 
-    # Load subreddit if requested
+    # Load a subreddit if passed through as an argument
     if ($Subreddit -ne "") {
         Get-RedditPage -Subreddit $Subreddit -TerminalX $TerminalX -TerminalY $TerminalY
     } 
@@ -47,6 +48,9 @@ function Get-RedditPage {
     $MaxCharsWhiteSpace = $MaxCharsSubreddit + 1
     $MaxCharsTitle = Divide-Int -Multiples 4 -Divisor 5 -IntToDivide ($TerminalX - 5)
 
+    # Reset cursor
+    [System.Console]::SetCursorPosition(0,0)
+
     # Retrieve data from Reddit
     if ($Subreddit -eq "") { $Subreddit = "popular" }
     try {
@@ -63,7 +67,7 @@ function Get-RedditPage {
     $Links = $Page.Data.Children.Data
     if ($NumberOfResults -gt 99 ) { $NumberOfResults = 99 }
     if ($NumberOfResults -gt $Links.Count) { $NumberOfResults = $Links.Count }
-    if ($NumberOfResults -gt $TerminalY) { $NumberOfResults = $TerminalY - 2 }
+    if ($NumberOfResults -gt $TerminalY) { $NumberOfResults = $TerminalY - 3 }
 
     # Display results and save them in a cache file
     for ($i = 0; $i -lt $NumberOfResults; $i++) {
@@ -83,8 +87,8 @@ function Get-RedditPage {
     }
 }
 
-function Start-Prompt {
-    param(
+function Init-Prompt {
+    param (
         [Int]
         $WindowWidth,
         [Int]
@@ -99,7 +103,16 @@ function Start-Prompt {
     # Need this to pull screen into view, and then reset the cursor back.
     Write-Host " "
     [System.Console]::SetCursorPosition(0,$WindowHeight - 2)
-    
+}
+
+function Start-Prompt {
+    param(
+        [Int]
+        $WindowWidth,
+        [Int]
+        $WindowHeight
+    )
+
     $validCommand = $false
     $char = ""
     $userInput = ""
