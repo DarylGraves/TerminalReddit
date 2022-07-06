@@ -13,8 +13,7 @@ function Start-TerminalReddit {
     $Global:CacheFolder = $Env:APPDATA + "/PowershellTools/TerminalReddit"
     $Global:PostsQueryLimit = $NoOfPosts
     $Global:SiteContent = $null
-    $Global:LowestPost = 0
-    $Global:MaxPost = 0
+    $Global:PostToStartFrom = 0
     $Global:SubRedditPrompt = "(N)ext, (P)revious, (S)ubreddit, enter a Post Number or (Q)uit: " 
 
     # If Terminal is too small, don't start the application
@@ -52,7 +51,7 @@ function Start-TerminalReddit {
         else {
             if ($userInput.Length -eq 1) {
                 switch ($userInput[0]) {
-                    "N" {}
+                    "N" { Get-RedditPage -Subreddit $Subreddit}
                     "P" {}
                     "Q" { $closeApp = $True }
                     Default {}
@@ -103,13 +102,11 @@ function Display-SubredditContent {
     # Reset cursor
     [System.Console]::SetCursorPosition(0,0)
     
-    $NumberOfResults = 1000
-    if ($NumberOfResults -gt 99 ) { $NumberOfResults = 99 }
+    $NumberOfResults = $TerminalY - 3
     if ($NumberOfResults -gt $SiteContent.Count) { $NumberOfResults = $SiteContent.Count }
-    if ($NumberOfResults -gt $TerminalY) { $NumberOfResults = $TerminalY - 3 }
 
-    # Display results and save them in a cache file
-    for ($i = 0; $i -lt $NumberOfResults; $i++) {
+    # Display results
+    for ($i = $PostToStartFrom; $i -lt $NumberOfResults; $i++) {
         $Subreddit = Truncate-String -Text $SiteContent.Subreddit_name_prefixed[$i] -NewSize $MaxCharsSubreddit
         $Title = Truncate-String -Text $SiteContent.Title[$i] -NewSize $MaxCharsTitle
         $NoOfSpaces = $MaxCharsWhiteSpace - $Subreddit.Length
@@ -120,6 +117,8 @@ function Display-SubredditContent {
         Write-Host (" " * $NoOfSpaces)                -NoNewline
         Write-Host $Title -ForegroundColor Green
     }
+    
+    $PostToStartFrom = $PostToStartFrom + $NumberOfResults
 
     for ($i = 0; $i -lt ($TerminalY - $NumberOfResults - 3); $i++) {
         Write-Host ""
