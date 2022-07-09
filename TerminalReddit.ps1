@@ -1,179 +1,73 @@
-#TODO: Functions export: Don't include anything other than Start-TerminalReddit
 function Start-TerminalReddit {
-    param(
-        [String]
-        $Subreddit,
-        [Int]
-        $NoOfPosts = 1000
+    param (
     )
     
-    # Variables
-    $Global:TerminalX = [System.Console]::WindowWidth
-    $Global:TerminalY = [System.Console]::WindowHeight
-    $Global:CacheFolder = $Env:APPDATA + "/PowershellTools/TerminalReddit"
-    $Global:PostsQueryLimit = $NoOfPosts
-    $Global:SiteContent = $null
-    $Global:PostToStartFrom = 0
-    $Global:SubRedditPrompt = "(N)ext, (P)revious, (S)ubreddit, enter a Post Number or (Q)uit: " 
-
-    # If Terminal is too small, don't start the application
-    if (($TerminalX -lt $SubRedditPrompt.Length) -or $TerminalY -lt 10) {
-        Write-Host "Window too small!" -ForegroundColor Red
+    $Global:ScreenWidth = [System.Console]::BufferWidth
+    $Global:ScreenHeight = [System.Console]::BufferHeight
+   
+    if (($ScreenWidth -lt 58) -or ($ScreenHeight -lt 30)) {
+        Write-Host "Screen too small" -ForegroundColor Red
         Return
     }
+    Clear-MainWindow
+    Get-RedditPosts -Subreddit "powershell"
+    Prepare-Prompt
 
-    # Prepare Application
-    Clear-Host
-    $ProgressPreference = "SilentlyContinue" # No Progress Bar on Web Requests
-    Init-Cache
-
-    # Load a subreddit if passed through as an argument
-    if ($Subreddit -ne "") {
-        Get-RedditPage -Subreddit $Subreddit
+    while ($True) {
+       #Something here 
     }
-    else {
-        Init-Prompt
-    } 
-
-    # Prompt for user interaction
-    $closingApp = $false
-    do {
-        $userInput = Start-Prompt
-        Clear-Prompt
-        
-        # For some weird reason $key.char returns numbers with a 'D' prefixed...
-        $userInputasInt = $userInput.Replace("D", "")  -as [int]
-        
-        if ($userInputasInt -ne $null) {
-            #TODO: Open an actual Reddit Post
-        }
-        else {
-            if ($userInput.Length -eq 1) {
-                switch ($userInput[0]) {
-                    "N" { Get-RedditPage -Subreddit $Subreddit}
-                    "P" {}
-                    "Q" { $closeApp = $True }
-                    Default {}
-                }
-            }
-        }
-    } while ( $closeApp -ne $True )
-
-    Clear-Host
 }
 
+function Create-Borders {
+    [System.Console]::SetCursorPosition(0, $ScreenHeight - 3)
+    
+    $Border = "_" * $ScreenWidth
+    Write-Host $Border
+}
 
-function Get-RedditPage {
+function Get-RedditPosts {
     param (
-        # Subreddit
-        [String]
-        $Subreddit,
-        # Number of results to display
-        [Int]
-        $NumberOfResults = 26
+        [String]$Subreddit = "popular"
     )
     
-    # Retrieve data from Reddit
-    if ($Subreddit -eq "") { $Subreddit = "popular" }
     try {
-        $Page = Invoke-WebRequest -Uri "https://old.reddit.com/r/$Subreddit/.json?limit=$PostsQueryLimit"
-        
+        $WebRequest = Invoke-WebRequest -Uri "https://old.reddit.com/r/$Subreddit/.json"
     }
     catch {
-        Write-Host "Error accessing this site" -ForegroundColor red
-        return
+        #TODO: Invalid website? Close app or just return nothing?
     }
-    
-    # Manipulating the data just received
-    $Page = $Page | ConvertFrom-Json
-    $Global:SiteContent = $Page.Data.Children.Data
 
-    Display-SubredditContent
-    Init-Prompt
+    $Posts = $WebRequest.Content | ConvertFrom-Json
+    Display-RedditPosts -Posts $Posts
 }
 
-function Display-SubredditContent {
+function Display-RedditPosts {
+    param (
+        [PSCustomObject]$Posts,
+        [Bool]$Gui = $True
+    )
+    
+    if ($Gui) {
+        [System.Console]::SetCursorPosition(0, 0)
+    }
+
     # Variables
-    $MaxCharsSubreddit = Divide-Int -Multiples 1 -Divisor 5 -IntToDivide ($TerminalX - 5)
+    $MaxCharsSubreddit = Divide-Int -Multiples 1 -Divisor 5 -IntToDivide ($ScreenWidth - 5)
     $MaxCharsWhiteSpace = $MaxCharsSubreddit + 1
-    $MaxCharsTitle = Divide-Int -Multiples 4 -Divisor 5 -IntToDivide ($TerminalX - 5)
-    
-    # Reset cursor
-    [System.Console]::SetCursorPosition(0,0)
-    
-    $NumberOfResults = $TerminalY - 3
-    if ($NumberOfResults -gt $SiteContent.Count) { $NumberOfResults = $SiteContent.Count }
+    $MaxCharsTitle = Divide-Int -Multiples 4 -Divisor 5 -IntToDivide ($ScreenWidth - 5)
 
-    # Display results
-    for ($i = $PostToStartFrom; $i -lt $NumberOfResults; $i++) {
-        $Subreddit = Truncate-String -Text $SiteContent.Subreddit_name_prefixed[$i] -NewSize $MaxCharsSubreddit
-        $Title = Truncate-String -Text $SiteContent.Title[$i] -NewSize $MaxCharsTitle
-        $NoOfSpaces = $MaxCharsWhiteSpace - $Subreddit.Length
-
-        Write-Host [$i] -ForegroundColor Blue         -NoNewline
-        if ($i -lt 10) { Write-Host " "               -NoNewline }            
-        Write-Host $Subreddit -ForegroundColor Yellow -NoNewline
-        Write-Host (" " * $NoOfSpaces)                -NoNewline
+    for ($i = 0; $i -lt $Posts.data.children.Count; $i++) {
+        $Number = if ($i -lt 10) { "[$i ]" } else { "[$i]" }
+        $Subreddit = Truncate-String -Text $Posts.data.children[$i].data.Subreddit -NewSize $MaxCharsSubreddit
+        $Title = Truncate-String -Text $Posts.data.children[$i].data.title -NewSize $MaxCharsTitle
+        
+        #TODO: Ability for user to change colours
+        Write-Host "$Number " -ForegroundColor Blue -NoNewline
+        Write-Host "$Subreddit " -ForegroundColor Yellow -NoNewline
         Write-Host $Title -ForegroundColor Green
     }
-    
-    #TODO: Start from here. Why isn't this variable increasing?
-    $PostToStartFrom = $PostToStartFrom + $NumberOfResults
 
-    for ($i = 0; $i -lt ($TerminalY - $NumberOfResults - 3); $i++) {
-        Write-Host ""
-    }
-}
-
-function Init-Prompt {
-    [System.Console]::SetCursorPosition(0, $TerminalY - 3)
-    for ($i = 0; $i -lt $TerminalX; $i++) {
-        Write-Host "-" -NoNewline
-    } 
-
-    [System.Console]::SetCursorPosition(0,$TerminalY -2)
-    Write-Host $SubRedditPrompt -NoNewline
-}
-
-function Clear-Prompt {
-    [System.Console]::SetCursorPosition(0,$TerminalY - 2)
-    Write-Host (" " * $TerminalX)
-    Init-Prompt       
-}
-
-function Start-Prompt {
-    $char = ""
-    $charCount = 0
-    $userInput = ""
-    
-    do {
-        $char = [System.Console]::ReadKey()
-
-        if ($char.Key -eq "Backspace") {
-            if ($charCount -gt 0) {
-                # Overwrite the previous char in the console... 
-                Write-Host " " -NoNewline
-                $CurrentXPos = [System.Console]::CursorLeft
-                $CurrentYPos = [System.Console]::CursorTop
-                # ...But then you have to reset the cursor
-                [System.Console]::SetCursorPosition(($CurrentXPos - 1), $CurrentYPos)
-
-                # Update what is added to the return
-                $userInput = $userInput.Substring(0, $userInput.Length - 1)
-                $charCount -= 1
-
-                #TODO: Backspace will keep going into the prompt....
-            }
-        }
-        else {
-            if ($char.Key -ne "Enter") {
-                $userInput += $char.Key
-                $charCount += 1
-            }
-        }
-    } while (($charCount -lt ($TerminalX - $SubRedditPrompt.Length)) -and ($char.Key -ne "Enter"))
-
-    return $userInput
+    Cursor-ToBottom
 }
 
 function Truncate-String {
@@ -181,9 +75,7 @@ function Truncate-String {
         [String]
         $Text,
         [Int]
-        $NewSize,
-        [Bool]
-        $Trailoff = $False
+        $NewSize
     )
    
     if ($Text.Length -gt $NewSize)
@@ -208,6 +100,7 @@ function Divide-Int {
     )
 
     $Calculation = $IntToDivide / $Divisor
+
     if ($Calculation % 2 -eq 0){
         return $Calculation * $Multiples
     }
@@ -216,10 +109,16 @@ function Divide-Int {
     }
 }
 
-function Init-Cache {
-    if ((Test-Path -Path $CacheFolder) -ne $True) {
-        New-Item -Path $CacheFolder -ItemType Directory
-    }
+function Clear-MainWindow {
+    Clear-Host
+    Create-Borders
 }
 
-Start-TerminalReddit -Subreddit Powershell
+function Cursor-ToBottom {
+    [System.Console]::SetCursorPosition(0, $ScreenHeight - 2)
+}
+
+function Prepare-Prompt {
+    Write-Host "(R)efresh, (N)ext, (P)rev or type a number: " -NoNewline    
+}
+Start-TerminalReddit
