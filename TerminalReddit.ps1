@@ -27,6 +27,7 @@ function Start-TerminalReddit {
         # For some weird reason $key.char returns numbers with a 'D' prefixed...
         $userInputasInt = $userInput.Replace("D", "")  -as [int]
         
+        $RowsToDisplay = $ScreenHeight - $BorderPosition
         if ($userInputasInt -ne $null) {
             #TODO: Open a Reddit Post
         }
@@ -36,31 +37,30 @@ function Start-TerminalReddit {
                     "S" {} #TODO: Search
                     "R" {} #TODO: Refresh
                     "N" {
-                        $FirstPostNo = $LastPostNo
-                        $LastPostNo = $LastPostNo + ($ScreenHeight - $BorderPosition)
 
-                        if($FirstPostNo -ge $Posts.Count)
-                        {
-                            $FirstPostNo = $FirstPostNo - ($ScreenHeight - $BorderPosition)
-                            $LastPostNo = $Posts.Count - 1
+                        if ($LastPostNo  -lt $Posts.Count) {
+                            $FirstPostNo = $LastPostNo
+                            $LastPostNo += $RowsToDisplay
+                            
+                            if($LastPostNo -gt $Posts.Count){
+                                $LastPostNo = $Posts.Count
+                            }
+
+                            Display-RedditPosts -Posts $Posts -StartNumber $FirstPostNo -NumberToDisplay $LastPostNo
                         }
-
-                        if ($LastPostNo -gt $Posts.Count - 1) {
-                            $LastPostNo = $Posts.Count - 1
-                        }
-
-                        Display-RedditPosts -Posts $Posts -StartNumber $FirstPostNo -NumberToDisplay $LastPostNo
                     }
                     "P" {
-                        $FirstPostNo = $FirstPostNo - ($ScreenHeight - $BorderPosition)
-                        $LastPostNo = $FirstPostNo + ($ScreenHeight - $BorderPosition)
+                        if ($FirstPostNo -gt 0) {
+                            $FirstPostNo = $FirstPostNo - $RowsToDisplay
+                            $LastPostNo = $FirstPostNo + $RowsToDisplay
+                        
+                            if($FirstPostNo -le 0){
+                                $FirstPostNo = 0
+                                $LastPostNo = $FirstPostNo + $RowsToDisplay
+                            }
 
-                        if ($FirstPostNo -lt 0) { 
-                            $FirstPostNo = 0
-                            $LastPostNo = $FirstPostNo + ($ScreenHeight - $BorderPosition)
+                            Display-RedditPosts -Posts $Posts -StartNumber $FirstPostNo -NumberToDisplay $LastPostNo
                         }
-
-                        Display-RedditPosts -Posts $Posts -StartNumber $FirstPostNo -NumberToDisplay $LastPostNo
                     }
                     "Q" { $closeApp = $True }
                     Default {}
@@ -114,8 +114,8 @@ function Display-RedditPosts {
     $MaxCharsWhiteSpace = $MaxCharsSubreddit + 1
     $MaxCharsTitle = Divide-Int -Multiples 4 -Divisor 5 -IntToDivide ($ScreenWidth - 5)
 
-    for ($i = $StartNumber + 1; $i -lt $NumberToDisplay + 1; $i++) {
-        $Number = if ($i -lt 10) { "[$i ]" } else { "[$i]" }
+    for ($i = $StartNumber; $i -lt $NumberToDisplay; $i++) {
+        $Number = if ($($i+1) -lt 10) { "[$($i+1) ]" } else { "[$($i+1)]" }
         $Subreddit = Truncate-String -Text $Posts[$i].data.Subreddit -NewSize $MaxCharsSubreddit
         $Title = Truncate-String -Text $Posts[$i].data.title -NewSize $MaxCharsTitle
         
@@ -127,6 +127,7 @@ function Display-RedditPosts {
     }
 
     Cursor-ToBottom
+    #TODO: Display-RedditPosts shows the character from the previous entry
 }
 
 function Truncate-String {
