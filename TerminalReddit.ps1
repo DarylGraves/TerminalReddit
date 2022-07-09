@@ -12,10 +12,13 @@ function Start-TerminalReddit {
     }
 
     # On Startup, always load /r/popular
-    Create-Borders
+    Clear-MainWindow
     $Posts = Get-RedditPosts -Subreddit "popular"
-    Display-RedditPosts -Posts $Posts -StartNumber 0 -NumberToDisplay ($ScreenWidth - $BorderPosition)
+    $FirstPostNo = 0
+    $LastPostNo = $ScreenHeight - $BorderPosition
+    Display-RedditPosts -Posts $Posts -StartNumber $FirstPostNo -NumberToDisplay $LastPostNo
 
+    # Now get user input:
     $closeApp = $false
     while ($closeApp -ne $true) {
         Set-PromptText
@@ -32,8 +35,32 @@ function Start-TerminalReddit {
                 switch ($userInput[0]) {
                     "S" {} #TODO: Search
                     "R" {} #TODO: Refresh
-                    "N" {} #TODO: Next
-                    "P" {} #TODO: Previous
+                    "N" {
+                        $FirstPostNo = $LastPostNo
+                        $LastPostNo = $LastPostNo + $ScreenHeight - $BorderPosition
+
+                        if($FirstPostNo -gt $Posts.Count)
+                        {
+                            $FirstPostNo = $Posts.Count -1
+                        }
+
+                        if ($LastPostNo -gt $Posts.Count - 1) {
+                            $LastPostNo = $Posts.Count - 1
+                        }
+
+                        Display-RedditPosts -Posts $Posts -StartNumber $FirstPostNo -NumberToDisplay $LastPostNo
+                    }
+                    "P" {
+                        $FirstPostNo = $FirstPostNo - ($ScreenHeight - $BorderPosition)
+                        $LastPostNo = $LastPostNo - ($ScreenHeight - $BorderPosition)
+
+                        if ($FirstPostNo -lt 0) { 
+                            $FirstPostNo = 0
+                            $LastPostNo = $FirstPostNo + ($ScreenHeight - $BorderPosition)
+                        }
+
+                        Display-RedditPosts -Posts $Posts -StartNumber $FirstPostNo -NumberToDisplay $LastPostNo
+                    }
                     "Q" { $closeApp = $True }
                     Default {}
                 }
@@ -64,7 +91,7 @@ function Get-RedditPosts {
     }
 
     $Posts = $WebRequest.Content | ConvertFrom-Json
-    Return $Posts
+    Return $Posts.Data.Children
 }
 
 function Display-RedditPosts {
@@ -74,6 +101,8 @@ function Display-RedditPosts {
         [Int]$StartNumber = 0,
         [Bool]$Gui = $True
     )
+
+    Clear-MainWindow
     
     if ($Gui) {
         [System.Console]::SetCursorPosition(0, 0)
@@ -84,14 +113,14 @@ function Display-RedditPosts {
     $MaxCharsWhiteSpace = $MaxCharsSubreddit + 1
     $MaxCharsTitle = Divide-Int -Multiples 4 -Divisor 5 -IntToDivide ($ScreenWidth - 5)
 
-    for ($i = 0; $i -lt $Posts.data.children.Count; $i++) {
+    for ($i = $StartNumber; $i -lt $NumberToDisplay; $i++) {
         $Number = if ($i -lt 10) { "[$i ]" } else { "[$i]" }
-        $Subreddit = Truncate-String -Text $Posts.data.children[$i].data.Subreddit -NewSize $MaxCharsSubreddit
-        $Title = Truncate-String -Text $Posts.data.children[$i].data.title -NewSize $MaxCharsTitle
+        $Subreddit = Truncate-String -Text $Posts[$i].data.Subreddit -NewSize $MaxCharsSubreddit
+        $Title = Truncate-String -Text $Posts[$i].data.title -NewSize $MaxCharsTitle
         
         #TODO: Display-RedditPosts: Ability for user to change colours
         #TODO: Display-RedditPosts: If the subreddit name varies in length, column should still be the same width... (example of this is loading popular)
-        Write-Host "$Number " -ForegroundColor Blue -NoNewline
+        Write-Host "$Number" -ForegroundColor Blue -NoNewline
         Write-Host "$Subreddit " -ForegroundColor Yellow -NoNewline
         Write-Host $Title -ForegroundColor Green
     }
