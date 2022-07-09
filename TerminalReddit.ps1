@@ -37,7 +37,6 @@ function Start-TerminalReddit {
                     "S" {} #TODO: Search
                     "R" {} #TODO: Refresh
                     "N" {
-
                         if ($LastPostNo  -lt $Posts.Count) {
                             $FirstPostNo = $LastPostNo
                             $LastPostNo += $RowsToDisplay
