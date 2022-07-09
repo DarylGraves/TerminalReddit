@@ -37,11 +37,12 @@ function Start-TerminalReddit {
                     "R" {} #TODO: Refresh
                     "N" {
                         $FirstPostNo = $LastPostNo
-                        $LastPostNo = $LastPostNo + $ScreenHeight - $BorderPosition
+                        $LastPostNo = $LastPostNo + ($ScreenHeight - $BorderPosition)
 
-                        if($FirstPostNo -gt $Posts.Count)
+                        if($FirstPostNo -ge $Posts.Count)
                         {
-                            $FirstPostNo = $Posts.Count -1
+                            $FirstPostNo = $FirstPostNo - ($ScreenHeight - $BorderPosition)
+                            $LastPostNo = $Posts.Count - 1
                         }
 
                         if ($LastPostNo -gt $Posts.Count - 1) {
@@ -52,7 +53,7 @@ function Start-TerminalReddit {
                     }
                     "P" {
                         $FirstPostNo = $FirstPostNo - ($ScreenHeight - $BorderPosition)
-                        $LastPostNo = $LastPostNo - ($ScreenHeight - $BorderPosition)
+                        $LastPostNo = $FirstPostNo + ($ScreenHeight - $BorderPosition)
 
                         if ($FirstPostNo -lt 0) { 
                             $FirstPostNo = 0
@@ -84,7 +85,7 @@ function Get-RedditPosts {
     )
     
     try {
-        $WebRequest = Invoke-WebRequest -Uri "https://old.reddit.com/r/$Subreddit/.json?limit=1000"
+        $WebRequest = Invoke-WebRequest -Uri "https://old.reddit.com/r/$Subreddit/.json?limit=99"
     }
     catch {
         #TODO: Invalid website? Close app or just return nothing?
@@ -113,7 +114,7 @@ function Display-RedditPosts {
     $MaxCharsWhiteSpace = $MaxCharsSubreddit + 1
     $MaxCharsTitle = Divide-Int -Multiples 4 -Divisor 5 -IntToDivide ($ScreenWidth - 5)
 
-    for ($i = $StartNumber; $i -lt $NumberToDisplay; $i++) {
+    for ($i = $StartNumber + 1; $i -lt $NumberToDisplay + 1; $i++) {
         $Number = if ($i -lt 10) { "[$i ]" } else { "[$i]" }
         $Subreddit = Truncate-String -Text $Posts[$i].data.Subreddit -NewSize $MaxCharsSubreddit
         $Title = Truncate-String -Text $Posts[$i].data.title -NewSize $MaxCharsTitle
