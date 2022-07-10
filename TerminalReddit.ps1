@@ -6,7 +6,7 @@ function Start-TerminalReddit {
     $Global:ScreenWidth = [System.Console]::BufferWidth
     $Global:ScreenHeight = [System.Console]::BufferHeight
     $Global:BorderPosition = 3
-    $RowsToDisplay = $ScreenHeight - $BorderPosition
+    $Global:RowsToDisplay = $ScreenHeight - $BorderPosition
        
     if (($ScreenWidth -lt 58) -or ($ScreenHeight -lt 30)) {
         Write-Host "Screen too small" -ForegroundColor Red
@@ -35,9 +35,13 @@ function Start-TerminalReddit {
         else {
             if ($userInput.Length -eq 1) {
                 switch ($userInput[0]) {
-                    "S" {} #TODO: Search
+                    "S" {
+                        Subreddit-PromptText
+                        $UserInput = Get-UserInput
+                    } #TODO: Search
                     "R" {
-                        $Posts = Get-RedditPosts -Subreddit
+                        Refreshing-PromptText
+                        $Posts = Get-RedditPosts -Subreddit $Subreddit
                         $FirstPostNo = 0
                         $LastPostNo = $RowsToDisplay
                         Clear-MainWindow
@@ -185,11 +189,33 @@ function Cursor-ToBottom {
 }
 
 function Set-PromptText {
+    # Clear whatever is already there...
+    [System.Console]::SetCursorPosition(0, $RowsToDisplay + 1)
+    $Text = (" " * $ScreenWidth)
+    Write-Host $Text -NoNewline
+
+    # And now print
+    [System.Console]::SetCursorPosition(0, $RowsToDisplay + 1)
     Write-Host "(S)earch, (R)efresh, (N)ext, (P)rev, (Q)uit or post number: " -NoNewline
+
     #TODO: Set-PromptText - Highlight options in a different colour?
 }
 
+function Refreshing-PromptText {
+    # Clear whatever is already there...
+    [System.Console]::SetCursorPosition(0, $RowsToDisplay + 1)
+    $Text = (" " * $ScreenWidth)
+    Write-Host $Text -NoNewline
+
+    # And now print
+    [System.Console]::SetCursorPosition(0, $RowsToDisplay + 1)
+    Write-Host "Refreshing... Please wait." -NoNewline
+}
 function Get-UserInput {
+    Param(
+        [Int]$AcceptedNoOfChars = 1
+    )
+
     $char = ""
     $charCount = 0
     $userInput = ""
@@ -215,13 +241,34 @@ function Get-UserInput {
         }
         else {
             if ($char.Key -ne "Enter") {
+                $isChar = $false
                 $userInput += $char.Key
                 $charCount += 1
+                
+                # Test to see if it's a number - If it is we act differently
+                # For some weird reason $key.char returns numbers with a 'D' prefixed...
+                $userInputasInt = $userInput.Replace("D", "")  -as [int]
+        
+                if ($userInputasInt -eq $null) {
+                    $isChar = $true
+                }
             }
         }
-    } while (($charCount -lt 5) -and ($char.Key -ne "Enter"))
+        #TODO: how do I make it so I can change between 1 char inputs and a subreddit search?
+    } while ((($charCount -lt 2) -and ($char.Key -ne "Enter") -and ($isChar -ne $true)))
 
     return $userInput 
+}
+
+function Subreddit-PromptText {
+        # Clear whatever is already there...
+        [System.Console]::SetCursorPosition(0, $RowsToDisplay + 1)
+        $Text = (" " * $ScreenWidth)
+        Write-Host $Text -NoNewline
+    
+        # And now print
+        [System.Console]::SetCursorPosition(0, $RowsToDisplay + 1)
+        Write-Host "Please enter the subreddit to search: " -NoNewline
 }
 
 Start-TerminalReddit
