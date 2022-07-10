@@ -1,19 +1,21 @@
 function Start-TerminalReddit {
     param (
+        [String]$Subreddit = "Popular"
     )
     
     $Global:ScreenWidth = [System.Console]::BufferWidth
     $Global:ScreenHeight = [System.Console]::BufferHeight
     $Global:BorderPosition = 3
-   
+    $RowsToDisplay = $ScreenHeight - $BorderPosition
+       
     if (($ScreenWidth -lt 58) -or ($ScreenHeight -lt 30)) {
         Write-Host "Screen too small" -ForegroundColor Red
         Return
     }
 
-    # On Startup, always load /r/popular
+    # On Startup, always load a subreddit
     Clear-MainWindow
-    $Posts = Get-RedditPosts -Subreddit "popular"
+    $Posts = Get-RedditPosts -Subreddit $Subreddit
     $FirstPostNo = 0
     $LastPostNo = $ScreenHeight - $BorderPosition
     Display-RedditPosts -Posts $Posts -StartNumber $FirstPostNo -NumberToDisplay $LastPostNo
@@ -27,7 +29,6 @@ function Start-TerminalReddit {
         # For some weird reason $key.char returns numbers with a 'D' prefixed...
         $userInputasInt = $userInput.Replace("D", "")  -as [int]
         
-        $RowsToDisplay = $ScreenHeight - $BorderPosition
         if ($userInputasInt -ne $null) {
             #TODO: Open a Reddit Post
         }
@@ -35,7 +36,13 @@ function Start-TerminalReddit {
             if ($userInput.Length -eq 1) {
                 switch ($userInput[0]) {
                     "S" {} #TODO: Search
-                    "R" {} #TODO: Refresh
+                    "R" {
+                        $Posts = Get-RedditPosts -Subreddit
+                        $FirstPostNo = 0
+                        $LastPostNo = $RowsToDisplay
+                        Clear-MainWindow
+                        Display-RedditPosts -Posts $Posts -StartNumber $FirstPostNo -NumberToDisplay $LastPostNo
+                    }
                     "N" {
                         if ($LastPostNo  -lt $Posts.Count) {
                             $FirstPostNo = $LastPostNo
